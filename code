@@ -1,0 +1,130 @@
+#!/bin/sh
+#==================================================
+# code
+#
+#  Organize git repos in to a standard directory
+# structure.
+#
+# USAGE:
+#       code -h
+#
+# REQUIRES: sh,grep,awk,sed
+#
+# CREATED: Thu Feb 20 09:37:58 CST 2020
+#==================================================
+
+#========================================
+# GLOBAL VARIABLES
+#========================================
+
+# USER CONFIGURABLE VARS
+code_location="${HOME}/code"
+
+# DO NOT EDIT THESE VARS
+
+
+#========================================
+# FUNCTIONS
+#========================================
+
+#----------------------------------------
+# Print usage to STDOUT
+# Globals:
+#   None
+# Arguments:
+#   None
+# Returns:
+#   None
+#----------------------------------------
+usage()
+{
+  echo "usage: $0 [-v] file ..."
+}
+
+#----------------------------------------
+# Parse a standard uri
+# Globals:
+#   None
+# Arguments:
+#   None
+# Returns:
+#   None
+#----------------------------------------
+# From: https://stackoverflow.com/a/6174447
+parse_uri()
+{
+  # extract the protocol
+  proto="$(echo $1 | grep :// | sed -e's,^\(.*://\).*,\1,g')"
+
+  # remove the protocol -- updated
+  url=$(echo $1 | sed -e s,$proto,,g)
+
+  # extract the user (if any)
+  user="$(echo $url | grep @ | cut -d@ -f1)"
+
+  # extract the host and port -- updated
+  hostport=$(echo $url | sed -e s,$user@,,g | cut -d/ -f1)
+
+  # by request host without port
+  host="$(echo $hostport | sed -e 's,:.*,,g')"
+  # by request - try to extract the port
+  port="$(echo $hostport | sed -e 's,^.*:,:,g' -e 's,.*:\([0-9]*\).*,\1,g' -e 's,[^0-9],,g')"
+
+  # extract the path (if any)
+  path="$(echo $url | grep / | cut -d/ -f2-)"
+}
+
+
+#========================================
+# SUBCOMMANDS
+#========================================
+
+sub_default()
+{
+  usage
+}
+
+sub_get()
+{
+  parse_uri "${1}"
+  git clone "${1}" "${code_location}/${host}/${path}"
+}
+
+sub_list()
+{
+  find "${code_location}" -type d -path '*/.git' -print -prune\
+    | xargs -I {} dirname {}
+}
+
+
+#========================================
+# MAIN ()
+#========================================
+
+#----------------------------------------
+# Test for valid run conditions
+#----------------------------------------
+
+#..Must be run from console...............
+TEST=$(tty | grep '/dev/tty')
+if [ $? -ne 0 ]; then
+  echo >&2 "ERROR: Must be on console"
+  exit 1
+fi
+
+progname=$(basename $0)
+subcommand=$1
+case $subcommand in
+  "" | "-h" | "--help")
+    sub_default
+    ;;
+  *)
+    shift
+    sub_${subcommand} $@
+    if [ $? = 127 ]; then
+      echo "Error: '${subcommand}' is not a know subcommand." >&2
+      echo "       Run '${progname} --help' for a list of know subcommands." >&2
+      exit 1
+    fi
+    ;;
+esac
